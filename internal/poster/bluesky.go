@@ -198,6 +198,17 @@ func (b *BlueskyPoster) Post(ctx context.Context, content PostContent) (*PostRes
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 
+	// Check for expired token and retry with fresh auth
+	if resp.StatusCode == http.StatusBadRequest && bytes.Contains(respBody, []byte("ExpiredToken")) {
+		slog.Debug("access token expired, re-authenticating")
+		b.accessToken = "" // Clear cached token
+		if err := b.authenticate(ctx); err != nil {
+			return nil, fmt.Errorf("re-authenticate: %w", err)
+		}
+		// Retry the post with fresh token
+		return b.Post(ctx, content)
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("post failed (status %d): %s", resp.StatusCode, string(respBody))
 	}
