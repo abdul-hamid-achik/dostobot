@@ -1,176 +1,207 @@
 # DostoBot
 
-An intelligent social media bot that posts contextually relevant Dostoyevsky quotes to Bluesky based on trending topics.
+A social media bot that posts contextually relevant Dostoyevsky quotes based on trending topics. Monitors Hacker News for trends, finds semantically matching quotes using hybrid vector search, and posts to Bluesky.
 
-## Setup
+[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://go.dev)
+[![Bluesky](https://img.shields.io/badge/Bluesky-@dostobot-0085ff?logo=bluesky)](https://bsky.app/profile/dostobot.bsky.social)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-### Prerequisites
+## Features
 
-1. **Go 1.21+** - [Install Go](https://go.dev/dl/)
+- **Quote Extraction** - Uses Claude AI to extract meaningful quotes from Dostoyevsky novels
+- **Hybrid Search** - VecLite with HNSW vector index + BM25 text search for optimal matching
+- **Trend Monitoring** - Watches Hacker News (Reddit support included)
+- **Smart Matching** - Claude evaluates quote-trend relevance before posting
+- **Bluesky Posting** - Native AT Protocol integration
 
-2. **Ollama** with the embedding model:
-   ```bash
-   # Install Ollama (macOS/Linux)
-   curl -fsSL https://ollama.com/install.sh | sh
-
-   # Pull the embedding model
-   ollama pull nomic-embed-text
-
-   # Verify it's running
-   ollama list
-   ```
-
-3. **Task runner** (optional but recommended):
-   ```bash
-   go install github.com/go-task/task/v3/cmd/task@latest
-   ```
-
-### External Accounts
-
-Before running, you need:
-
-| Account | Where to Get | Required For |
-|---------|--------------|--------------|
-| **Anthropic API Key** | [console.anthropic.com](https://console.anthropic.com) | Quote extraction |
-| **Bluesky Account** | [bsky.app](https://bsky.app) | Posting |
-| **Bluesky App Password** | Bluesky Settings → App Passwords | Posting |
-| **Reddit OAuth** (optional) | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) | Reddit trend monitoring |
-
-### Installation
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/abdulachik/dostobot
+# Clone and setup
+git clone https://github.com/abdul-hamid-achik/dostobot
 cd dostobot
-
-# Copy environment template and edit with your credentials
 cp .env.example .env
+# Edit .env with your API keys
 
-# Build the binary
+# Build and run
 go build -o bin/dostobot ./cmd/dostobot
+./bin/dostobot download    # Get books from Project Gutenberg
+./bin/dostobot migrate     # Initialize database
+./bin/dostobot extract     # Extract quotes (uses Claude API)
+./bin/dostobot embed       # Generate vector embeddings
+./bin/dostobot serve       # Start the bot
 ```
 
-### Configuration
+## Prerequisites
 
-Edit `.env` with your credentials:
+| Requirement | Purpose | How to Get |
+|-------------|---------|------------|
+| **Go 1.21+** | Build the binary | [go.dev/dl](https://go.dev/dl/) |
+| **Anthropic API Key** | Quote extraction & matching | [console.anthropic.com](https://console.anthropic.com) |
+| **OpenAI API Key** | Vector embeddings | [platform.openai.com](https://platform.openai.com) |
+| **Bluesky Account** | Posting quotes | [bsky.app](https://bsky.app) |
+| **Task** (optional) | Run task commands | `go install github.com/go-task/task/v3/cmd/task@latest` |
+
+## Configuration
+
+Create a `.env` file from the template:
 
 ```bash
-# Required for extraction
-ANTHROPIC_API_KEY=sk-ant-xxxxx
+cp .env.example .env
+```
 
-# Required for posting
+### Required Variables
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-xxxxx    # Claude API for extraction/matching
+OPENAI_API_KEY=sk-xxxxx           # OpenAI for embeddings
 BLUESKY_HANDLE=yourbot.bsky.social
 BLUESKY_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
-
-# Optional - for Reddit trend monitoring
-REDDIT_CLIENT_ID=xxxxx
-REDDIT_CLIENT_SECRET=xxxxx
 ```
 
-### First Run
-
-```bash
-# 1. Download Dostoyevsky books from Project Gutenberg
-./bin/dostobot download
-
-# 2. Set up the database
-./bin/dostobot migrate
-
-# 3. Extract quotes (this calls Claude API - costs ~$0.50-2 per book)
-./bin/dostobot extract --book "Crime and Punishment"
-
-# 4. Generate embeddings (requires Ollama running)
-./bin/dostobot embed
-
-# 5. Check stats
-./bin/dostobot stats
-```
-
-### Testing
-
-```bash
-# Test quote matching
-./bin/dostobot match "Political scandal shakes the nation"
-
-# Dry run posting (doesn't actually post)
-./bin/dostobot post --dry-run
-
-# Actually post
-./bin/dostobot post
-```
-
-### Running the Daemon
-
-```bash
-# Run the bot (monitors trends and posts on schedule)
-./bin/dostobot serve
-```
-
-## Commands
-
-```
-dostobot download           # Download books from Project Gutenberg
-dostobot migrate            # Run database migrations
-dostobot extract [--all]    # Extract quotes from books
-dostobot embed              # Generate embeddings
-dostobot match "trend"      # Test matching
-dostobot post [--dry-run]   # Post a quote
-dostobot stats              # Show statistics
-dostobot serve              # Run the bot daemon
-```
-
-## Task Commands
-
-If you have `task` installed:
-
-```bash
-task download    # Download books
-task migrate     # Run migrations
-task extract     # Extract quotes (pass args with --)
-task embed       # Generate embeddings
-task match       # Test matching (pass args with --)
-task post        # Post a quote
-task stats       # Show stats
-task dev         # Run daemon locally
-task test        # Run tests
-task build       # Build binary
-```
-
-## Configuration Reference
+### Optional Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | - | Claude API key (required for extraction) |
-| `BLUESKY_HANDLE` | - | Your Bluesky handle |
-| `BLUESKY_APP_PASSWORD` | - | Bluesky app password |
-| `REDDIT_CLIENT_ID` | - | Reddit OAuth client ID (optional) |
-| `REDDIT_CLIENT_SECRET` | - | Reddit OAuth secret (optional) |
-| `REDDIT_USER_AGENT` | `dostobot:v1.0.0` | Reddit API user agent |
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
-| `DATABASE_PATH` | `data/dostobot.db` | SQLite database path |
-| `LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
+| `DATABASE_PATH` | `data/dostobot.db` | SQLite database location |
+| `VECLITE_PATH` | `data/quotes.veclite` | Vector database location |
 | `MONITOR_INTERVAL` | `30m` | How often to check for trends |
 | `POST_INTERVAL` | `4h` | How often to post |
-| `MAX_POSTS_PER_DAY` | `6` | Maximum posts per day |
+| `MAX_POSTS_PER_DAY` | `6` | Daily post limit |
+| `LOG_LEVEL` | `info` | Logging verbosity |
 
-## Architecture
+## Commands
 
-See `docs/adr/` for architecture decision records:
+```bash
+dostobot download           # Download books from Project Gutenberg
+dostobot migrate            # Run database migrations
+dostobot extract [--book]   # Extract quotes from books
+dostobot embed              # Generate vector embeddings
+dostobot match "query"      # Test quote matching
+dostobot post [--dry-run]   # Post a quote
+dostobot stats              # Show database statistics
+dostobot serve              # Run the bot daemon
+```
 
-- **ADR-001**: Single binary with subcommands
-- **ADR-002**: SQLite with pure Go driver (no CGO)
-- **ADR-003**: Local embeddings via Ollama
-- **ADR-004**: Bluesky primary, Twitter deferred
-- **ADR-005**: In-memory vector search
+### Using Task
 
-## Cost Estimates
+If you have [Task](https://taskfile.dev) installed:
 
-- **Ollama**: Free (runs locally)
-- **Claude API**: ~$0.50-2 per book for extraction, ~$0.01-0.05 per match evaluation
-- **Bluesky**: Free
-- **Reddit API**: Free
-- **Hosting**: ~$6/month on DigitalOcean droplet
+```bash
+task dev        # Run daemon locally
+task build      # Build binary
+task test       # Run tests
+task deploy     # Full deployment to Hetzner
+task update     # Quick binary update
+task logs       # View production logs
+task status     # Check production status
+```
+
+## How It Works
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ Hacker News │────▶│   Filter    │────▶│   VecLite   │
+│   Trends    │     │  (topics)   │     │   Search    │
+└─────────────┘     └─────────────┘     └──────┬──────┘
+                                               │
+                    ┌─────────────┐     ┌──────▼──────┐
+                    │   Bluesky   │◀────│   Claude    │
+                    │    Post     │     │  Evaluate   │
+                    └─────────────┘     └─────────────┘
+```
+
+1. **Monitor** - Fetches top stories from Hacker News every 30 minutes
+2. **Filter** - Removes sensitive or off-topic trends
+3. **Search** - Hybrid vector + text search finds candidate quotes
+4. **Evaluate** - Claude scores quote-trend relevance (threshold: 0.6)
+5. **Post** - Best match posted to Bluesky with attribution
+
+## Deployment
+
+Deploy to Hetzner Cloud with Terraform + Ansible:
+
+```bash
+# Set your Hetzner token
+export HCLOUD_TOKEN=xxxxx
+
+# Deploy everything
+task deploy
+```
+
+This creates a CPX11 server (~$4.50/month) and configures:
+- Systemd service with auto-restart
+- Firewall (SSH, HTTP, HTTPS)
+- All databases and configuration
+
+### Production Commands
+
+```bash
+task logs       # Stream production logs
+task status     # Check service status
+task ssh        # SSH into server
+task restart    # Restart service
+task backup     # Backup databases locally
+task update     # Deploy new binary only
+```
+
+## Project Structure
+
+```
+cmd/dostobot/       # CLI commands
+internal/
+  config/           # Environment configuration
+  db/               # SQLite + sqlc queries
+  embedder/         # Legacy Ollama embedder
+  extractor/        # Claude quote extraction
+  matcher/          # Vector search + Claude selection
+  monitor/          # Trend sources (HN, Reddit)
+  poster/           # Bluesky AT Protocol client
+  scheduler/        # Daemon orchestration
+  vectorstore/      # VecLite integration
+deploy/
+  terraform/        # Hetzner infrastructure
+  ansible/          # Server configuration
+  systemd/          # Service definition
+docs/adr/           # Architecture decisions
+```
+
+## Architecture Decisions
+
+See [`docs/adr/`](docs/adr/) for detailed records:
+
+| ADR | Decision |
+|-----|----------|
+| [001](docs/adr/001-single-binary.md) | Single binary with subcommands |
+| [002](docs/adr/002-sqlite-pure-go.md) | Pure Go SQLite (no CGO) |
+| [003](docs/adr/003-local-embeddings.md) | Local embeddings via Ollama |
+| [004](docs/adr/004-bluesky-primary.md) | Bluesky primary platform |
+| [005](docs/adr/005-in-memory-vector.md) | In-memory vector search |
+
+*Note: The project has evolved to use VecLite with OpenAI embeddings for production.*
+
+## Cost Breakdown
+
+| Service | Cost | Notes |
+|---------|------|-------|
+| OpenAI Embeddings | ~$0.001 | One-time for 3,339 quotes |
+| Claude API | ~$2/book | Extraction (~$0.01/match) |
+| Hetzner CPX11 | ~$4.50/month | 2 vCPU, 2GB RAM |
+| Bluesky | Free | No API costs |
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests: `go test ./...`
+5. Submit a pull request
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Links
+
+- **Live Bot**: [@dostobot.bsky.social](https://bsky.app/profile/dostobot.bsky.social)
+- **VecLite**: [github.com/abdul-hamid-achik/veclite](https://github.com/abdul-hamid-achik/veclite)
