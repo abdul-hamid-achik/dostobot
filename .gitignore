@@ -1,0 +1,96 @@
+# Binaries
+bin/
+dostobot
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of go coverage tool
+coverage.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment (contains secrets!)
+.env
+.env.local
+.env.*.local
+
+# Database
+data/*.db
+data/*.db-journal
+data/*.db-shm
+data/*.db-wal
+
+# VecLite vector store
+*.veclite
+data/*.veclite
+
+# Books (downloaded from Gutenberg)
+books/*.txt
+
+# Backups
+backups/*.sql
+backups/*.gz
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Debug
+__debug_bin*
+*.pprof
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+
+# Vecgrep (AI code search index)
+.vecgrep/
+
+# Terraform
+deploy/terraform/.terraform/
+deploy/terraform/.terraform.lock.hcl
+deploy/terraform/.terraform.tfstate.lock.info
+deploy/terraform/terraform.tfstate
+deploy/terraform/terraform.tfstate.backup
+deploy/terraform/terraform.tfvars
+deploy/terraform/*.auto.tfvars
+
+# Ansible
+deploy/ansible/inventory.ini
+
+# Server IP (created by terraform)
+deploy/.server_ip
+
+# Production secrets
+.env.production
+
+# SSH keys
+*.pem
+id_*
+!id_*.pub

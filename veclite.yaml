@@ -1,0 +1,16 @@
+# VecLite configuration for DostoBot
+# See https://github.com/abdul-hamid-achik/veclite for docs
+
+embedder:
+  provider: openai  # openai | ollama | onnx
+
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: text-embedding-3-small
+    dimension: 1536
+    timeout: 30s
+
+  ollama:
+    base_url: ${OLLAMA_HOST:-http://localhost:11434}
+    model: ${OLLAMA_MODEL:-nomic-embed-text}
+    timeout: 30s

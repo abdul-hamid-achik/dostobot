@@ -1,0 +1,182 @@
+version: '3'
+
+vars:
+  BINARY: dostobot
+  SERVER_IP:
+    sh: cat deploy/.server_ip 2>/dev/null || echo ""
+  SSH_KEY: ~/.ssh/id_hetzner
+
+tasks:
+  # Development
+  dev:
+    desc: Run locally in serve mode
+    cmds:
+      - go run ./cmd/dostobot serve
+
+  build:
+    desc: Build binary
+    cmds:
+      - go build -o bin/{{.BINARY}} ./cmd/dostobot
+
+  build:linux:
+    desc: Build for Linux
+    cmds:
+      - GOOS=linux GOARCH=amd64 go build -o bin/{{.BINARY}}-linux-amd64 ./cmd/dostobot
+
+  # Database & Content
+  sqlc:
+    desc: Generate sqlc code
+    cmds:
+      - sqlc generate
+
+  embed:
+    desc: Generate embeddings
+    cmds:
+      - go run ./cmd/dostobot embed
+
+  extract:
+    desc: Extract quotes from books
+    cmds:
+      - go run ./cmd/dostobot extract {{.CLI_ARGS}}
+
+  # Operations
+  match:
+    desc: Test matching
+    cmds:
+      - go run ./cmd/dostobot match "{{.CLI_ARGS}}"
+
+  post:
+    desc: Post a quote
+    cmds:
+      - go run ./cmd/dostobot post {{.CLI_ARGS}}
+
+  stats:
+    desc: Show stats
+    cmds:
+      - go run ./cmd/dostobot stats
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test ./... -v
+
+  # ===================
+  # DEPLOYMENT
+  # ===================
+  deploy:
+    desc: Deploy to Hetzner (creates infra + deploys)
+    cmds:
+      - task: build:linux
+      - task: deploy:infra
+      - task: deploy:wait
+      - task: deploy:ansible
+
+  deploy:infra:
+    desc: Create Hetzner infrastructure
+    dir: deploy/terraform
+    cmds:
+      - |
+        if [ -z "$HCLOUD_TOKEN" ]; then
+          source ../../.env 2>/dev/null || true
+        fi
+        cat > terraform.tfvars <<EOF
+        hcloud_token = "$HCLOUD_TOKEN"
+        ssh_public_key_path = "~/.ssh/id_hetzner.pub"
+        location = "ash"
+        EOF
+      - terraform init -input=false
+      - terraform apply -auto-approve
+      - terraform output -raw server_ip > ../.server_ip
+
+  deploy:wait:
+    desc: Wait for server to be ready
+    cmds:
+      - |
+        echo "Waiting for server..."
+        for i in {1..30}; do
+          if ssh -i {{.SSH_KEY}} -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{{.SERVER_IP}} "echo ok" 2>/dev/null; then
+            echo "Server ready!"
+            exit 0
+          fi
+          echo -n "."
+          sleep 5
+        done
+        echo "Timeout waiting for server"
+        exit 1
+
+  deploy:ansible:
+    desc: Configure server with Ansible
+    dir: deploy/ansible
+    cmds:
+      - |
+        cat > inventory.ini <<EOF
+        [dostobot]
+        {{.SERVER_IP}} ansible_user=root ansible_ssh_private_key_file={{.SSH_KEY}} ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+        EOF
+      - ansible-playbook -i inventory.ini playbook.yml
+
+  deploy:destroy:
+    desc: Destroy infrastructure
+    dir: deploy/terraform
+    prompt: This will DESTROY the server. Continue?
+    cmds:
+      - terraform destroy -auto-approve
+      - rm -f ../.server_ip
+
+  # ===================
+  # PRODUCTION
+  # ===================
+  logs:
+    desc: View production logs
+    cmds:
+      - ssh -i {{.SSH_KEY}} root@{{.SERVER_IP}} "journalctl -u dostobot -f"
+    preconditions:
+      - sh: '[ -n "{{.SERVER_IP}}" ]'
+        msg: "No server IP. Run 'task deploy' first."
+
+  status:
+    desc: Check production status
+    cmds:
+      - ssh -i {{.SSH_KEY}} root@{{.SERVER_IP}} "systemctl status dostobot"
+    preconditions:
+      - sh: '[ -n "{{.SERVER_IP}}" ]'
+        msg: "No server IP. Run 'task deploy' first."
+
+  ssh:
+    desc: SSH into server
+    cmds:
+      - ssh -i {{.SSH_KEY}} root@{{.SERVER_IP}}
+    preconditions:
+      - sh: '[ -n "{{.SERVER_IP}}" ]'
+        msg: "No server IP. Run 'task deploy' first."
+
+  restart:
+    desc: Restart production service
+    cmds:
+      - ssh -i {{.SSH_KEY}} root@{{.SERVER_IP}} "systemctl restart dostobot"
+    preconditions:
+      - sh: '[ -n "{{.SERVER_IP}}" ]'
+        msg: "No server IP. Run 'task deploy' first."
+
+  backup:
+    desc: Backup production databases
+    cmds:
+      - mkdir -p backups
+      - scp -i {{.SSH_KEY}} root@{{.SERVER_IP}}:/opt/dostobot/data/dostobot.db backups/dostobot-$(date +%Y%m%d-%H%M%S).db
+      - scp -i {{.SSH_KEY}} root@{{.SERVER_IP}}:/opt/dostobot/data/quotes.veclite backups/quotes-$(date +%Y%m%d-%H%M%S).veclite
+      - echo "Backup saved to backups/"
+    preconditions:
+      - sh: '[ -n "{{.SERVER_IP}}" ]'
+        msg: "No server IP. Run 'task deploy' first."
+
+  # Quick update (just binary)
+  update:
+    desc: Quick update - rebuild and deploy binary only
+    cmds:
+      - task: build:linux
+      - scp -i {{.SSH_KEY}} bin/{{.BINARY}}-linux-amd64 root@{{.SERVER_IP}}:/opt/dostobot/bin/dostobot
+      - ssh -i {{.SSH_KEY}} root@{{.SERVER_IP}} "systemctl restart dostobot"
+      - echo "Updated and restarted!"
+    preconditions:
+      - sh: '[ -n "{{.SERVER_IP}}" ]'
+        msg: "No server IP. Run 'task deploy' first."

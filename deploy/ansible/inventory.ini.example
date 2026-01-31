@@ -1,0 +1,9 @@
+# Copy to inventory.ini and update with your droplet IP
+# Get IP from: terraform output droplet_ip
+
+[dostobot]
+# Replace with your droplet IP
+your_droplet_ip ansible_user=root
+
+[dostobot:vars]
+ansible_python_interpreter=/usr/bin/python3

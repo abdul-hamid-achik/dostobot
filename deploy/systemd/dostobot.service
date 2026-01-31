@@ -1,0 +1,34 @@
+[Unit]
+Description=DostoBot - Dostoyevsky quotes for social media
+After=network.target
+
+[Service]
+Type=simple
+User=dostobot
+Group=dostobot
+WorkingDirectory=/opt/dostobot
+ExecStart=/opt/dostobot/bin/dostobot serve
+Restart=always
+RestartSec=10
+
+# Environment file with secrets
+EnvironmentFile=/opt/dostobot/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dostobot
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/opt/dostobot/data
+
+# Resource limits for $6 droplet (1GB RAM)
+MemoryMax=512M
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target

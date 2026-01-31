@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and fill in values
+# DO NOT commit terraform.tfvars to git!
+
+hcloud_token        = "your_hetzner_api_token"
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+location            = "ash"  # Ashburn, Virginia, USA

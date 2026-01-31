@@ -1,0 +1,136 @@
+---
+- name: Deploy DostoBot to DigitalOcean
+  hosts: dostobot
+  become: yes
+  vars:
+    app_user: dostobot
+    app_dir: /opt/dostobot
+    bin_dir: "{{ app_dir }}/bin"
+    data_dir: "{{ app_dir }}/data"
+
+  tasks:
+    # System setup
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - unzip
+          - sqlite3
+        state: present
+
+    # User setup
+    - name: Create dostobot system user
+      user:
+        name: "{{ app_user }}"
+        system: yes
+        shell: /usr/sbin/nologin
+        home: "{{ app_dir }}"
+        create_home: no
+
+    # Directory setup
+    - name: Create application directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0755"
+      loop:
+        - "{{ app_dir }}"
+        - "{{ bin_dir }}"
+        - "{{ data_dir }}"
+
+    # Copy binary
+    - name: Copy dostobot binary
+      copy:
+        src: "{{ playbook_dir }}/../../bin/dostobot-linux-amd64"
+        dest: "{{ bin_dir }}/dostobot"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0755"
+      notify: Restart dostobot
+
+    # Copy veclite config
+    - name: Copy veclite.yaml
+      copy:
+        src: "{{ playbook_dir }}/../../veclite.yaml"
+        dest: "{{ app_dir }}/veclite.yaml"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0644"
+      notify: Restart dostobot
+
+    # Copy data files if they exist
+    - name: Check if local database exists
+      local_action: stat path="{{ playbook_dir }}/../../data/dostobot.db"
+      register: local_db
+      become: no
+
+    - name: Copy SQLite database
+      copy:
+        src: "{{ playbook_dir }}/../../data/dostobot.db"
+        dest: "{{ data_dir }}/dostobot.db"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0644"
+      when: local_db.stat.exists
+
+    - name: Check if local VecLite database exists
+      local_action: stat path="{{ playbook_dir }}/../../data/quotes.veclite"
+      register: local_veclite
+      become: no
+
+    - name: Copy VecLite database
+      copy:
+        src: "{{ playbook_dir }}/../../data/quotes.veclite"
+        dest: "{{ data_dir }}/quotes.veclite"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0644"
+      when: local_veclite.stat.exists
+
+    # Environment file (secrets)
+    - name: Copy environment file
+      copy:
+        src: "{{ playbook_dir }}/../../.env.production"
+        dest: "{{ app_dir }}/.env"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0600"
+      notify: Restart dostobot
+
+    # Systemd service
+    - name: Install systemd service
+      copy:
+        src: "{{ playbook_dir }}/../systemd/dostobot.service"
+        dest: /etc/systemd/system/dostobot.service
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart dostobot
+
+    - name: Enable dostobot service
+      systemd:
+        name: dostobot
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Start dostobot service
+      systemd:
+        name: dostobot
+        state: started
+
+  handlers:
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Restart dostobot
+      systemd:
+        name: dostobot
+        state: restarted
