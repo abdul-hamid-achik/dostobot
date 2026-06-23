@@ -45,6 +45,17 @@ type SearchResult struct {
 
 // New creates a new QuoteStore using veclite.yaml configuration.
 func New(cfg Config) (*QuoteStore, error) {
+	return newStore(cfg, false)
+}
+
+// NewReadOnly creates a read-only QuoteStore with a shared flock, allowing
+// multiple readers while a writer holds the exclusive lock. The collection must
+// already exist. Use for search-only paths (e.g. the `match` command).
+func NewReadOnly(cfg Config) (*QuoteStore, error) {
+	return newStore(cfg, true)
+}
+
+func newStore(cfg Config, readOnly bool) (*QuoteStore, error) {
 	slog.Debug("creating QuoteStore", "path", cfg.Path, "config_path", cfg.ConfigPath)
 
 	// Load veclite config (searches ./veclite.yaml, ~/.veclite/config.yaml)
@@ -67,7 +78,11 @@ func New(cfg Config) (*QuoteStore, error) {
 	slog.Debug("embedder created", "dimension", dimension)
 
 	// Open VecLite database
-	vecdb, err := veclite.Open(cfg.Path)
+	opts := []veclite.Option{}
+	if readOnly {
+		opts = append(opts, veclite.WithReadOnly(true), veclite.WithSharedRead(true))
+	}
+	vecdb, err := veclite.Open(cfg.Path, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("open veclite db: %w", err)
 	}

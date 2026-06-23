@@ -66,7 +66,7 @@ func runMatch(cmd *cobra.Command, args []string) error {
 	// Check if VecLite is available
 	var quoteStore *vectorstore.QuoteStore
 	if cfg.VecLitePath != "" {
-		quoteStore, err = vectorstore.New(vectorstore.Config{
+		quoteStore, err = vectorstore.NewReadOnly(vectorstore.Config{
 			Path: cfg.VecLitePath,
 		})
 		if err != nil {
